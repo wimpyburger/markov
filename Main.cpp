@@ -7,22 +7,20 @@
 #include <set>
 #include <time.h>
 
+// to use with command line:
+// chain.exe textfile.exe word
+
 struct wordStats {
 	std::string firstWord;
 	std::string secondWord;
 	int count;
 };
 
-struct wordCount {
-	std::string word;
-	int count;
-};
-
 std::string textPath = "text.txt";
+std::string outputPath = "output.txt";
 std::string textContent;
 
 std::vector<wordStats> wStats;
-std::vector<wordCount> wCount;
 std::vector<std::string> words;
 
 std::string outputString;
@@ -31,6 +29,13 @@ void error(std::string msg) {
 	std::cout << msg << std::endl << "Press any key to exit the program" << std::endl;
 	_getch();
 	exit(0);
+}
+
+std::vector<std::string> toLower(std::vector<std::string> arr) {
+	for (unsigned i = 0; i < arr.size(); i++) {
+		std::transform(arr[i].begin(), arr[i].end(), arr[i].begin(), tolower);
+	}
+	return arr;
 }
 
 std::vector<std::string> splitString(std::string str) {
@@ -68,27 +73,6 @@ std::vector<std::string> removeEmpty(std::vector<std::string> arr) {
 	return arr;
 }
 
-void getWordCount() {
-	// get unique
-	std::set<std::string> uniqueWords;
-	for (unsigned i = 0; i < words.size(); i++) {
-		// convert to lowercase
-		std::transform(words[i].begin(), words[i].end(), words[i].begin(), tolower);
-		uniqueWords.insert(words[i]);
-	}
-	// copy into wordcount vector
-	std::for_each(
-		uniqueWords.begin(),
-		uniqueWords.end(),
-		[](const std::string& s) {
-			// get number of occurances
-		int occurances = std::count(words.begin(), words.end(), s);
-			wCount.push_back({ s, occurances });
-		}
-
-	);
-}
-
 void getWordStats() {
 	// create new vector of string with 2 consecutive words
 	std::vector<std::string> twoWords;
@@ -117,7 +101,7 @@ std::string selectWord(std::vector<wordStats> possibilities) {
 
 	for (unsigned i = 0; i < possibilities.size(); i++) {
 		// enter into array as many times as 'count' from wStats
-		for (unsigned ntimes = 0; ntimes < possibilities[i].count; ntimes++) {
+		for (int ntimes = 0; ntimes < possibilities[i].count; ntimes++) {
 			all.push_back(possibilities[i].secondWord);
 		}
 	}
@@ -126,8 +110,12 @@ std::string selectWord(std::vector<wordStats> possibilities) {
 	return all[rand() % (all.size())];
 }
 
-int main() {
+int main(int argc, char* argv[]) {
 	srand(time(NULL));
+
+	if (argc >= 3) {
+		textPath = argv[1];
+	}
 
 	std::ifstream textFile(textPath); // open file
 	if (!textFile.is_open()) {
@@ -136,23 +124,29 @@ int main() {
 	// get content
 	std::string tmp;
 	while (std::getline(textFile, tmp)) {
-		textContent += tmp + "\n";
+		textContent += tmp + ". ";
 	}
+	textFile.close();
 	tmp.clear();
 	// split into array
 	words = splitString(textContent);
 	// remove empty elements
 	words = removeEmpty(words);
-	// populate word counts
-	getWordCount();
+	// convert to lowercase
+	words = toLower(words);
 	// populate word stats
 	getWordStats();
 
 	while (true) {
 		// GENERATION STARTS HERE//
-		int wordCount = 0;
 		std::string lastWord;
-		std::cin >> lastWord;
+		int wordCount = 0;
+		if (argc >= 3) {
+			lastWord = argv[2];
+		}
+		else {
+			std::cin >> lastWord;
+		}
 
 		if (lastWord == "%RANDOM%") {
 			// get random word to start, more frequent words have higher chance to start
@@ -164,7 +158,7 @@ int main() {
 		/*std::string lastWord = words[rand() % words.size()];*/
 		wordCount++;
 
-		while (wordCount < 15 || lastWord.find_first_of('\n') == std::string::npos) {
+		while (wordCount < 15 || outputString.substr(0, outputString.find_last_of('.') + 1).length() < 30) { // loop ends when wordcount exceeds 15 and without the last sentence it is long enough
 			// get every entry in wStats where firstword == our starting word
 			auto pred = [lastWord](wordStats& ws) {
 				return ws.firstWord == lastWord;
@@ -183,10 +177,18 @@ int main() {
 			outputString += lastWord + " ";
 			wordCount++;
 		}
-		outputString = outputString.substr(0, outputString.find_last_of('\n')); // remove text after last newline
+		outputString = outputString.substr(0, outputString.find_last_of('.') + 1); // remove text after last newline
+		// make first words in the sentence uppercase
+		outputString[0] = toupper(outputString[0]);
 		std::cout << outputString << std::endl << std::endl;
-	}
+		// write to file
+		std::ofstream outputFile(outputPath); // open file
+		outputFile << outputString;
+		outputFile.close();
 
-	_getch();
+		if (argc >= 3) {
+			break;
+		}
+	}
 	return 0;
 }
